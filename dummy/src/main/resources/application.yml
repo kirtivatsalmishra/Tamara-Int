@@ -1,0 +1,35 @@
+spring:
+  application:
+    name: dummy
+
+  datasource:
+    url: jdbc:h2:file:./data/interviewdb;AUTO_SERVER=TRUE;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+server:
+  port: 8080
+
+murabaha:
+  default-margin-percent: 12.00
+  min-margin-percent: 5.00
+  currency-code: SAR
+  business-zone: Asia/Riyadh

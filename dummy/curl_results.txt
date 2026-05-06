@@ -1,0 +1,301 @@
+================================================================
+## 1) Happy path — SAR default, today's purchase date, metals/4
+## $ curl -sS -i -X POST http://localhost:8080/api/murabaha/plans     -H 'Content-Type: application/json'     -d '{"customerId":"CUST-1","commodityCost":"1000.00","commodityCategory":"metals","installments":4}'
+================================================================
+HTTP/1.1 201 
+Content-Type: application/json
+Transfer-Encoding: chunked
+Date: Wed, 06 May 2026 11:09:46 GMT
+
+{"planId":"cf2d507e-56d0-478a-a548-0ccc8fa37865","customerId":"CUST-1","commodityCost":1000.00,"currencyCode":"SAR","appliedMarginPercent":12.00,"totalProfit":120.00,"totalPayable":1120.00,"baseInstallmentAmount":280.00,"schedule":[{"sequence":1,"dueDate":"2026-06-06","amount":280.00},{"sequence":2,"dueDate":"2026-07-06","amount":280.00},{"sequence":3,"dueDate":"2026-08-06","amount":280.00},{"sequence":4,"dueDate":"2026-09-06","amount":280.00}],"contractSummary":"This Murabaha contract confirms our purchase of the commodity on your behalf for SAR 1000.00. We are selling it to you at a total price of SAR 1120.00, which includes our profit of SAR 120.00. This amount is to be paid in 4 equal monthly installments of SAR 280.00."}
+
+================================================================
+## 2a) 100/3 split — unknown category falls back to default 12%, purchaseDate 2026-01-31
+## $ curl -sS -X POST http://localhost:8080/api/murabaha/plans     -H 'Content-Type: application/json'     -d '{"customerId":"CUST-2","commodityCost":"100.00","commodityCategory":"unknown-falls-back-to-default","installments":3,"purchaseDate":"2026-01-31"}' | jq
+================================================================
+{
+  "planId": "094f9d9c-0cff-4eef-a3d8-4d221eaf5102",
+  "customerId": "CUST-2",
+  "commodityCost": 100.00,
+  "currencyCode": "SAR",
+  "appliedMarginPercent": 12.00,
+  "totalProfit": 12.00,
+  "totalPayable": 112.00,
+  "baseInstallmentAmount": 37.33,
+  "schedule": [
+    {
+      "sequence": 1,
+      "dueDate": "2026-02-28",
+      "amount": 37.33
+    },
+    {
+      "sequence": 2,
+      "dueDate": "2026-03-31",
+      "amount": 37.33
+    },
+    {
+      "sequence": 3,
+      "dueDate": "2026-04-30",
+      "amount": 37.34
+    }
+  ],
+  "contractSummary": "This Murabaha contract confirms our purchase of the commodity on your behalf for SAR 100.00. We are selling it to you at a total price of SAR 112.00, which includes our profit of SAR 12.00. This amount is to be paid in 3 equal monthly installments of SAR 37.33."
+}
+
+
+================================================================
+## 2b) Same 100/3 — schedule only (proves last installment = 33.34 absorbs remainder; cost=100*1.12=112; 112/3 -> 37.33,37.33,37.34)
+## $ curl -sS -X POST http://localhost:8080/api/murabaha/plans     -H 'Content-Type: application/json'     -d '{"customerId":"CUST-2b","commodityCost":"100.00","commodityCategory":"unknown","installments":3,"purchaseDate":"2026-01-31"}' | jq '{totalPayable, schedule}'
+================================================================
+{
+  "totalPayable": 112.00,
+  "schedule": [
+    {
+      "sequence": 1,
+      "dueDate": "2026-02-28",
+      "amount": 37.33
+    },
+    {
+      "sequence": 2,
+      "dueDate": "2026-03-31",
+      "amount": 37.33
+    },
+    {
+      "sequence": 3,
+      "dueDate": "2026-04-30",
+      "amount": 37.34
+    }
+  ]
+}
+
+
+================================================================
+## 3) Jan 31 month-end clamp on oil/3 — schedule should be Feb 28, Mar 31, Apr 30 (NOT Mar 28)
+## $ curl -sS -X POST http://localhost:8080/api/murabaha/plans     -H 'Content-Type: application/json'     -d '{"customerId":"CUST-3","commodityCost":"3000.00","commodityCategory":"oil","installments":3,"purchaseDate":"2026-01-31"}' | jq '.schedule'
+================================================================
+[
+  {
+    "sequence": 1,
+    "dueDate": "2026-02-28",
+    "amount": 1100.00
+  },
+  {
+    "sequence": 2,
+    "dueDate": "2026-03-31",
+    "amount": 1100.00
+  },
+  {
+    "sequence": 3,
+    "dueDate": "2026-04-30",
+    "amount": 1100.00
+  }
+]
+
+
+================================================================
+## 4) JPY (scale=0) — wheat/5; proves currency-driven scale (no decimals on amounts)
+## $ curl -sS -X POST http://localhost:8080/api/murabaha/plans     -H 'Content-Type: application/json'     -d '{"customerId":"CUST-4","commodityCost":"100000","commodityCategory":"wheat","installments":5,"currencyCode":"JPY"}' | jq
+================================================================
+{
+  "planId": "ae7d0946-4563-4c1e-9aa9-e6a69cdc95c6",
+  "customerId": "CUST-4",
+  "commodityCost": 100000,
+  "currencyCode": "JPY",
+  "appliedMarginPercent": 15.00,
+  "totalProfit": 15000,
+  "totalPayable": 115000,
+  "baseInstallmentAmount": 23000,
+  "schedule": [
+    {
+      "sequence": 1,
+      "dueDate": "2026-06-06",
+      "amount": 23000
+    },
+    {
+      "sequence": 2,
+      "dueDate": "2026-07-06",
+      "amount": 23000
+    },
+    {
+      "sequence": 3,
+      "dueDate": "2026-08-06",
+      "amount": 23000
+    },
+    {
+      "sequence": 4,
+      "dueDate": "2026-09-06",
+      "amount": 23000
+    },
+    {
+      "sequence": 5,
+      "dueDate": "2026-10-06",
+      "amount": 23000
+    }
+  ],
+  "contractSummary": "This Murabaha contract confirms our purchase of the commodity on your behalf for JPY 100000. We are selling it to you at a total price of JPY 115000, which includes our profit of JPY 15000. This amount is to be paid in 5 equal monthly installments of JPY 23000."
+}
+
+
+================================================================
+## 5) KWD (scale=3) + Idempotency-Key + SAVE10 promo on gold (margin 8% * 0.9 = 7.2%)
+## $ curl -sS -X POST http://localhost:8080/api/murabaha/plans     -H 'Content-Type: application/json'     -H 'Idempotency-Key: curl-demo-kwd-001'     -d '{"customerId":"CUST-7421","commodityCost":"5000.000","commodityCategory":"gold","installments":6,"promoCode":"SAVE10","purchaseDate":"2026-05-06","currencyCode":"KWD"}' | jq
+================================================================
+{
+  "planId": "475b7c01-52f4-41ca-8050-cee850b55195",
+  "customerId": "CUST-7421",
+  "commodityCost": 5000.000,
+  "currencyCode": "KWD",
+  "appliedMarginPercent": 7.20,
+  "totalProfit": 360.000,
+  "totalPayable": 5360.000,
+  "baseInstallmentAmount": 893.333,
+  "schedule": [
+    {
+      "sequence": 1,
+      "dueDate": "2026-06-06",
+      "amount": 893.333
+    },
+    {
+      "sequence": 2,
+      "dueDate": "2026-07-06",
+      "amount": 893.333
+    },
+    {
+      "sequence": 3,
+      "dueDate": "2026-08-06",
+      "amount": 893.333
+    },
+    {
+      "sequence": 4,
+      "dueDate": "2026-09-06",
+      "amount": 893.333
+    },
+    {
+      "sequence": 5,
+      "dueDate": "2026-10-06",
+      "amount": 893.333
+    },
+    {
+      "sequence": 6,
+      "dueDate": "2026-11-06",
+      "amount": 893.335
+    }
+  ],
+  "contractSummary": "This Murabaha contract confirms our purchase of the commodity on your behalf for KWD 5000.000. We are selling it to you at a total price of KWD 5360.000, which includes our profit of KWD 360.000. This amount is to be paid in 6 equal monthly installments of KWD 893.333."
+}
+
+
+================================================================
+## 6) Idempotent replay — same key + same body, must return SAME planId
+## $ curl -sS -X POST http://localhost:8080/api/murabaha/plans     -H 'Content-Type: application/json'     -H 'Idempotency-Key: curl-demo-kwd-001'     -d '{"customerId":"CUST-7421","commodityCost":"5000.000","commodityCategory":"gold","installments":6,"promoCode":"SAVE10","purchaseDate":"2026-05-06","currencyCode":"KWD"}' | jq '{planId, totalPayable}'
+================================================================
+{
+  "planId": "475b7c01-52f4-41ca-8050-cee850b55195",
+  "totalPayable": 5360.000
+}
+
+
+================================================================
+## 7) Idempotency CONFLICT — same key, different body -> 409 problem-detail
+## $ curl -sS -i -X POST http://localhost:8080/api/murabaha/plans     -H 'Content-Type: application/json'     -H 'Idempotency-Key: curl-demo-kwd-001'     -d '{"customerId":"CUST-7421","commodityCost":"9999.000","commodityCategory":"gold","installments":6,"currencyCode":"KWD"}'
+================================================================
+HTTP/1.1 409 
+Content-Type: application/problem+json
+Transfer-Encoding: chunked
+Date: Wed, 06 May 2026 11:09:46 GMT
+
+{"type":"https://api.tamara.test/problems/idempotency-key-conflict","title":"Idempotency key conflict","status":409,"detail":"Idempotency key already used with a different request body: curl-demo-kwd-001","instance":"/api/murabaha/plans","idempotencyKey":"curl-demo-kwd-001"}
+
+================================================================
+## 8) Validation 400 — installments=13 (out of [2,12])
+## $ curl -sS -i -X POST http://localhost:8080/api/murabaha/plans     -H 'Content-Type: application/json'     -d '{"customerId":"CUST-5","commodityCost":"100.00","commodityCategory":"gold","installments":13}'
+================================================================
+HTTP/1.1 400 
+Content-Type: application/problem+json
+Transfer-Encoding: chunked
+Date: Wed, 06 May 2026 11:09:46 GMT
+Connection: close
+
+{"type":"https://api.tamara.test/problems/validation-failed","title":"Request validation failed","status":400,"detail":"One or more fields failed validation.","instance":"/api/murabaha/plans","errors":[{"field":"installments","message":"must be less than or equal to 12"}]}
+
+================================================================
+## 9) Validation 400 — unknown currency 'XYZ'
+## $ curl -sS -i -X POST http://localhost:8080/api/murabaha/plans     -H 'Content-Type: application/json'     -d '{"customerId":"CUST-6","commodityCost":"100.00","commodityCategory":"gold","installments":3,"currencyCode":"XYZ"}'
+================================================================
+HTTP/1.1 400 
+Content-Type: application/problem+json
+Transfer-Encoding: chunked
+Date: Wed, 06 May 2026 11:09:46 GMT
+Connection: close
+
+{"type":"https://api.tamara.test/problems/unknown-currency","title":"Unknown currency code","status":400,"detail":"Unknown ISO-4217 currency code: XYZ","instance":"/api/murabaha/plans","currencyCode":"XYZ"}
+
+================================================================
+## 10) Validation 400 — unknown promo code 'BOGUS'
+## $ curl -sS -i -X POST http://localhost:8080/api/murabaha/plans     -H 'Content-Type: application/json'     -d '{"customerId":"CUST-7","commodityCost":"100.00","commodityCategory":"gold","installments":3,"promoCode":"BOGUS"}'
+================================================================
+HTTP/1.1 400 
+Content-Type: application/problem+json
+Transfer-Encoding: chunked
+Date: Wed, 06 May 2026 11:09:46 GMT
+Connection: close
+
+{"type":"https://api.tamara.test/problems/invalid-promo-code","title":"Invalid promo code","status":400,"detail":"Unknown promo code: BOGUS","instance":"/api/murabaha/plans","promoCode":"BOGUS"}
+
+================================================================
+## 11) Validation 400 — negative cost
+## $ curl -sS -i -X POST http://localhost:8080/api/murabaha/plans     -H 'Content-Type: application/json'     -d '{"customerId":"CUST-8","commodityCost":"-50.00","commodityCategory":"gold","installments":3}'
+================================================================
+HTTP/1.1 400 
+Content-Type: application/problem+json
+Transfer-Encoding: chunked
+Date: Wed, 06 May 2026 11:09:46 GMT
+Connection: close
+
+{"type":"https://api.tamara.test/problems/validation-failed","title":"Request validation failed","status":400,"detail":"One or more fields failed validation.","instance":"/api/murabaha/plans","errors":[{"field":"commodityCost","message":"must be greater than or equal to 0.01"}]}
+
+================================================================
+## 12) Validation 400 — blank customerId
+## $ curl -sS -i -X POST http://localhost:8080/api/murabaha/plans     -H 'Content-Type: application/json'     -d '{"customerId":"","commodityCost":"100.00","commodityCategory":"gold","installments":3}'
+================================================================
+HTTP/1.1 400 
+Content-Type: application/problem+json
+Transfer-Encoding: chunked
+Date: Wed, 06 May 2026 11:09:46 GMT
+Connection: close
+
+{"type":"https://api.tamara.test/problems/validation-failed","title":"Request validation failed","status":400,"detail":"One or more fields failed validation.","instance":"/api/murabaha/plans","errors":[{"field":"customerId","message":"must not be blank"}]}
+
+================================================================
+## 13) Promo floor — SAVE20 on gold (8% * 0.8 = 6.4%, above 5% floor, so 6.40 applied)
+## $ curl -sS -X POST http://localhost:8080/api/murabaha/plans     -H 'Content-Type: application/json'     -d '{"customerId":"CUST-9","commodityCost":"1000.00","commodityCategory":"gold","installments":3,"promoCode":"SAVE20"}' | jq '{appliedMarginPercent, totalProfit, totalPayable}'
+================================================================
+{
+  "appliedMarginPercent": 6.40,
+  "totalProfit": 64.00,
+  "totalPayable": 1064.00
+}
+
+
+================================================================
+## 14) GET /api/murabaha/plans/{planId} — round-trip read of plan 2590672c-c8c1-4f35-9c31-a123c7b7511d
+## $ curl -sS -i http://localhost:8080/api/murabaha/plans/2590672c-c8c1-4f35-9c31-a123c7b7511d
+================================================================
+HTTP/1.1 200 
+Content-Type: application/json
+Transfer-Encoding: chunked
+Date: Wed, 06 May 2026 11:09:46 GMT
+
+{"planId":"2590672c-c8c1-4f35-9c31-a123c7b7511d","customerId":"CUST-FETCH","commodityCost":500.00,"currencyCode":"SAR","appliedMarginPercent":15.00,"totalProfit":75.00,"totalPayable":575.00,"baseInstallmentAmount":287.50,"schedule":[{"sequence":1,"dueDate":"2026-06-06","amount":287.50},{"sequence":2,"dueDate":"2026-07-06","amount":287.50}],"contractSummary":"This Murabaha contract confirms our purchase of the commodity on your behalf for SAR 500.00. We are selling it to you at a total price of SAR 575.00, which includes our profit of SAR 75.00. This amount is to be paid in 2 equal monthly installments of SAR 287.50."}
+
+================================================================
+## 15) GET non-existent planId -> 404 problem-detail
+## $ curl -sS -i http://localhost:8080/api/murabaha/plans/00000000-0000-0000-0000-000000000000
+================================================================
+HTTP/1.1 404 
+Content-Type: application/problem+json
+Transfer-Encoding: chunked
+Date: Wed, 06 May 2026 11:09:46 GMT
+
+{"type":"https://api.tamara.test/problems/plan-not-found","title":"Plan not found","status":404,"detail":"Plan not found: 00000000-0000-0000-0000-000000000000","instance":"/api/murabaha/plans/00000000-0000-0000-0000-000000000000","planId":"00000000-0000-0000-0000-000000000000"}
+

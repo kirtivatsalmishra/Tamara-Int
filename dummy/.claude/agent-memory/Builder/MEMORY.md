@@ -1,0 +1,2 @@
+- [Maven JAVA_HOME quirk](maven_java_home.md) — system mvn picks an older JDK by default; export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+- [Persisted-scale vs domain-scale gotcha](persisted_scale.md) — JPA hydrates BigDecimal at column scale, breaking idempotent JSON unless mapper normalises
